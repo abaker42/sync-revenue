@@ -17,6 +17,8 @@ export default function LoginPage() {
 		setLoading(true);
 		setError(null);
 
+        console.log('loging in email: %s password: %s', email, password)
+
 		const { data, error } = await supabase.auth.signInWithPassword({
 			email,
 			password,
@@ -51,7 +53,7 @@ export default function LoginPage() {
 					onChange={(e) => setPassword(e.target.value)}
 				/>
 				<button
-					type='submit'
+					onClick={handleLogin}
 					disabled={loading}
 					className='bg-blue-600 text-white w-full py-2 rounded disabled:opacity-50'
 				>
