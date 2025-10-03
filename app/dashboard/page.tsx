@@ -1,5 +1,6 @@
 import RevenueSummary from "@/components/dashboard/revenue-summary";
 import IntegrationCard from "@/components/dashboard/integration-card";
+import StripeChart from "@/components/dashboard/stripe-chart";
 
 export default function DashboardPage() {
 	return (
@@ -8,6 +9,7 @@ export default function DashboardPage() {
 			<h2 className='text-2xl font-bold mb-6'>Welcome back 👋</h2>
 			<p>This is your unified revenue dashboard.</p>
 			<RevenueSummary />
+            <StripeChart />
 			<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
 				<IntegrationCard name='Stripe' />
 				<IntegrationCard name='Gumroad' />
