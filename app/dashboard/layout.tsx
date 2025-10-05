@@ -1,8 +1,8 @@
 //This layout will wrap all dashboard pages and enforce authorization to view.
 export const dynamic = "force-dynamic";// allows me to read cookies dynamically
 
-import { createClient } from '@/lib/supabase-server'
-import { redirect } from "next/navigation";
+//import { createClient } from '@/lib/supabase-server'
+//import { redirect } from "next/navigation";
 import LogoutButton from "@/components/auth/logout";
 
 export default async function DashboardLayout({
