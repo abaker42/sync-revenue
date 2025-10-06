@@ -1,47 +1,67 @@
 //just copy pasting stripe code so I can deploy to vercel
-// app/api/integrations/stripe/route.ts
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
-export async function GET(req: Request) {
-	// Use STRIPE_SECRET_KEY for local testing
-	const stripeKey = process.env.STRIPE_SECRET_KEY;
-	if (!stripeKey) {
-		return NextResponse.json(
-			{ error: "STRIPE_SECRET_KEY not set" },
-			{ status: 400 }
-		);
+// Define a type for the payload you expect (replace with your real shape)
+interface GumroadPayload {
+	productId: string;
+	quantity: number;
+	userId?: string;
+}
+
+export async function POST(req: Request) {
+	// Parse the JSON body (unknown is safer than any)
+	const body = (await req.json()) as unknown;
+
+	// Validate or narrow type
+	if (
+		typeof body !== "object" ||
+		body === null ||
+		!("productId" in body) ||
+		!("quantity" in body)
+	) {
+		return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 	}
 
-	const stripe = new Stripe(stripeKey, { apiVersion: "2025-09-30.clover" });
+	const payload = body as GumroadPayload;
 
-	try {
-		// fetch charges (page small for demo)
-		const charges = await stripe.charges.list({ limit: 100 });
-
-		// Map into daily totals
-		const dailyMap: Record<string, number> = {};
-		for (const c of charges.data) {
-			if (!c.paid || c.refunded) continue;
-			const d = new Date((c.created || 0) * 1000);
-			const key = d.toISOString().slice(0, 10);
-			dailyMap[key] = (dailyMap[key] || 0) + (c.amount || 0) / 100; // cents -> dollars
+	// Create supabase client
+	const cookieStore = await cookies();
+	const supabase = createServerClient(
+		process.env.NEXT_PUBLIC_SUPABASE_URL!,
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+		{
+			cookies: {
+				get(name: string) {
+					return cookieStore.get(name)?.value;
+				},
+				set(name: string, value: string, opts: any) {
+					cookieStore.set({ name, value, ...opts });
+				},
+				remove(name: string, opts: any) {
+					cookieStore.set({ name, value: "", ...opts });
+				},
+			},
 		}
+	);
 
-		// Sort map by date
-		const data = Object.entries(dailyMap)
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([date, amount]) => ({ date, amount }));
+	// (Optional) check user
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
 
-		// optional: fetch balance
-		const balance = await stripe.balance.retrieve();
-
-		return NextResponse.json({ data, balance });
-	} catch (err: any) {
-		console.error("Stripe fetch error:", err);
-		return NextResponse.json(
-			{ error: err.message || "Stripe error" },
-			{ status: 500 }
-		);
+	if (!user) {
+		return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 	}
+
+	// Example: Save an order or log in a “purchases” table
+	await supabase.from("purchases").insert({
+		user_id: user.id,
+		product_id: payload.productId,
+		quantity: payload.quantity,
+		purchased_at: new Date().toISOString(),
+	});
+
+	return NextResponse.json({ success: true });
 }
