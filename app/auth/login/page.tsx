@@ -5,8 +5,9 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+function Login() {
 	const searchParams = useSearchParams();
 	const authErr = searchParams.get("error");
 	const router = useRouter();
@@ -69,5 +70,14 @@ export default function LoginPage() {
 				</div>
 			)}
 		</div>
+	);
+}
+
+export default function LoginPage() {
+	// Wrapping in Suspense is optional but future-proof.
+	return (
+		<Suspense fallback={<div>Loading...</div>}>
+			<Login />
+		</Suspense>
 	);
 }
