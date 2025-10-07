@@ -8,12 +8,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 	apiVersion: "2025-09-30.clover",
 });
 
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const code = searchParams.get("code");
 
 	if (!code) {
-		return NextResponse.redirect("/dashboard?error=stripe");
+		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
 	}
 
 	// Setup Supabase client
@@ -49,7 +51,7 @@ export async function GET(req: Request) {
 		} = await supabase.auth.getUser();
 
 		if (!user) {
-			return NextResponse.redirect("/auth/login");
+			return NextResponse.redirect(`${baseUrl}/auth/login`);
 		}
 
 		// Store integration in Supabase
@@ -61,10 +63,10 @@ export async function GET(req: Request) {
 			stripe_user_id: response.stripe_user_id,
 		});
 
-		return NextResponse.redirect("/dashboard?connected=stripe");
+		return NextResponse.redirect(`${baseUrl}/dashboard?connected=stripe`);
 	} catch (err) {
 		console.error("Stripe OAuth error:", err);
-		return NextResponse.redirect("/dashboard?error=stripe");
+		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
 	}
 }
 
