@@ -13,7 +13,6 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const code = searchParams.get("code");
-    console.log("My Code: "+code)
 
 	if (!code) {
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
@@ -42,27 +41,46 @@ export async function GET(req: Request) {
 	try {
         console.log('attempting to exchange code for token')
 		// Exchange code for Stripe access token
-		const response = await stripe.oauth.token({
-			grant_type: "authorization_code",
-			code,
-		});
+		// const response = await stripe.oauth.token({
+		// 	grant_type: "authorization_code",
+		// 	code,
+		// });
+        const tokenResponse = await fetch(
+			"https://connect.stripe.com/oauth/token",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({
+					grant_type: "authorization_code",
+					code,
+					client_secret: process.env.STRIPE_SECRET_KEY!,
+				}),
+			});
+
+        if (!tokenResponse.ok) {
+				const text = await tokenResponse.text();
+				console.error("Stripe token exchange failed:", text);
+				throw new Error(text);
+			}
+
+            const stripeData = await tokenResponse.json();
+			console.log("Stripe OAuth success:", stripeData);
 
 		// Get current user
-		const {
-			data: { user },
-		} = await supabase.auth.getUser();
+		const {data: { user }, } = await supabase.auth.getUser();
 
 		if (!user) {
+            console.error("No user found — redirecting to login");
 			return NextResponse.redirect(`${baseUrl}/auth/login`);
 		}
-        console.log('got user from supabase: '+user.id)
+
 		// Store integration in Supabase
 		await supabase.from("integrations").upsert({
 			user_id: user.id,
 			provider: "stripe",
-			access_token: response.access_token,
-			refresh_token: response.refresh_token,
-			stripe_user_id: response.stripe_user_id,
+			access_token: stripeData.access_token,
+			refresh_token: stripeData.refresh_token,
+			stripe_user_id: stripeData.stripe_user_id,
 		});
         console.log('stored integration in supabase')
 		return NextResponse.redirect(`${baseUrl}/dashboard?connected=stripe`);
