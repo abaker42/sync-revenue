@@ -4,8 +4,11 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
+	const searchParams = useSearchParams();
+	const authErr = searchParams.get("error");
 	const router = useRouter();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -16,8 +19,6 @@ export default function LoginPage() {
 		e.preventDefault();
 		setLoading(true);
 		setError(null);
-
-        console.log('loging in email: %s password: %s', email, password)
 
 		const { data, error } = await supabase.auth.signInWithPassword({
 			email,
@@ -60,6 +61,13 @@ export default function LoginPage() {
 					{loading ? "Logging in..." : "Login"}
 				</button>
 			</form>
+			{authErr && (
+				<div className='bg-red-100 text-red-700 px-4 py-2 rounded mb-4'>
+					{error === "stripe"
+						? "There was an issue connecting your Stripe account. Please try again."
+						: "An unexpected error occurred."}
+				</div>
+			)}
 		</div>
 	);
 }
