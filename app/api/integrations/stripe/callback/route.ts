@@ -13,6 +13,7 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const code = searchParams.get("code");
+    console.log("My Code: "+code)
 
 	if (!code) {
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
@@ -39,6 +40,7 @@ export async function GET(req: Request) {
 	);
 
 	try {
+        console.log('attempting to exchange code for token')
 		// Exchange code for Stripe access token
 		const response = await stripe.oauth.token({
 			grant_type: "authorization_code",
@@ -53,7 +55,7 @@ export async function GET(req: Request) {
 		if (!user) {
 			return NextResponse.redirect(`${baseUrl}/auth/login`);
 		}
-
+        console.log('got user from supabase: '+user.id)
 		// Store integration in Supabase
 		await supabase.from("integrations").upsert({
 			user_id: user.id,
@@ -62,7 +64,7 @@ export async function GET(req: Request) {
 			refresh_token: response.refresh_token,
 			stripe_user_id: response.stripe_user_id,
 		});
-
+        console.log('stored integration in supabase')
 		return NextResponse.redirect(`${baseUrl}/dashboard?connected=stripe`);
 	} catch (err) {
 		console.error("Stripe OAuth error:", err);
