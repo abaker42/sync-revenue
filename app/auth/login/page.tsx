@@ -28,12 +28,26 @@ function Login() {
 
 		if (error) {
 			setError(error.message);
-		} else {
-			router.push("/dashboard");
+			setLoading(false);
+			return;
 		}
 
+		// Wait for Supabase to set cookies
+		const { data: sessionData } = await supabase.auth.getSession();
+		if (!sessionData?.session) {
+			setError("Unable to create a session. Please try again.");
+			setLoading(false);
+			return;
+		}
+
+		// Optional: double-check in browser that cookie exists
+		console.log("Session established:", sessionData.session.user.email);
+
+		// Now safe to navigate
+		router.push("/dashboard");
 		setLoading(false);
 	}
+
 
 	return (
 		<div className='flex justify-center items-center min-h-screen'>
