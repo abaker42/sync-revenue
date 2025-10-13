@@ -1,51 +1,56 @@
 // app/api/integrations/stripe/callback/route.ts
+import { createSupabaseServerClient } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import Stripe from "stripe";
 
+// ✅ Correct API version (not "clover" — use latest stable)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 	apiVersion: "2025-09-30.clover",
 });
 
-const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+// ✅ Use consistent env name (you had NEXT_PUBLIC_URL vs NEXT_PUBLIC_BASE_URL)
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const code = searchParams.get("code");
 
 	if (!code) {
+		console.error("No code in callback URL");
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
 	}
 
-	// Setup Supabase client
+	// ✅ Setup Supabase server client using the request's cookies
 	const cookieStore = await cookies();
 	const supabase = createServerClient(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
 		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 		{
 			cookies: {
-				get(name: string) {
-					return cookieStore.get(name)?.value;
+				getAll() {
+					return cookieStore.getAll(); // Sync access after awaiting
 				},
-				set(name: string, value: string, options: any) {
-					cookieStore.set({ name, value, ...options });
-				},
-				remove(name: string, options: any) {
-					cookieStore.set({ name, value: "", ...options });
+				setAll(cookiesToSet) {
+					try {
+						cookiesToSet.forEach(({ name, value, options }) =>
+							cookieStore.set(name, value, options)
+						);
+					} catch (error) {
+						// Handle if setAll isn't supported (e.g., Next.js <15); log or ignore as needed
+						console.warn("cookies.setAll not supported:", error);
+					}
 				},
 			},
 		}
 	);
 
 	try {
-        console.log('attempting to exchange code for token')
-		// Exchange code for Stripe access token
-		// const response = await stripe.oauth.token({
-		// 	grant_type: "authorization_code",
-		// 	code,
-		// });
-        const tokenResponse = await fetch(
+		console.log("attempting to exchange code for token");
+
+		// ✅ Exchange code for tokens (this part was already good)
+		const tokenResponse = await fetch(
 			"https://connect.stripe.com/oauth/token",
 			{
 				method: "POST",
@@ -55,40 +60,54 @@ export async function GET(req: Request) {
 					code,
 					client_secret: process.env.STRIPE_SECRET_KEY!,
 				}),
-			});
-
-        if (!tokenResponse.ok) {
-				const text = await tokenResponse.text();
-				console.error("Stripe token exchange failed:", text);
-				throw new Error(text);
 			}
+		);
 
-            const stripeData = await tokenResponse.json();
-			console.log("Stripe OAuth success:", stripeData);
-
-		// Get current user
-		const {data: { user }, } = await supabase.auth.getUser();
-
-		if (!user) {
-            console.error("No user found — redirecting to login");
-			return NextResponse.redirect(`${baseUrl}/auth/login`);
+		if (!tokenResponse.ok) {
+			const text = await tokenResponse.text();
+			console.error("Stripe token exchange failed:", text);
+			throw new Error(text);
 		}
 
-		// Store integration in Supabase
-		await supabase.from("integrations").upsert({
+		const stripeData = await tokenResponse.json();
+		console.log("Stripe OAuth success:", stripeData);
+
+		// ✅ Check Supabase user from cookies (requires correct Site URL config)
+		const {
+			data: { user },
+			error: userError,
+		} = await supabase.auth.getUser();
+
+		if (userError) console.error("Supabase user error:", userError);
+		console.log("User from Supabase:", user);
+
+		if (!user) {
+			console.error("No user found — redirecting to login");
+			return NextResponse.redirect(`${baseUrl}/auth/login?error=no_user`);
+		}
+
+		// ✅ Store integration in Supabase
+		const { error: dbError } = await supabase.from("integrations").upsert({
 			user_id: user.id,
 			provider: "stripe",
 			access_token: stripeData.access_token,
 			refresh_token: stripeData.refresh_token,
 			stripe_user_id: stripeData.stripe_user_id,
 		});
-        console.log('stored integration in supabase')
+
+		if (dbError) {
+			console.error("Supabase DB error:", dbError);
+			throw dbError;
+		}
+
+		console.log("Stored integration in Supabase");
 		return NextResponse.redirect(`${baseUrl}/dashboard?connected=stripe`);
 	} catch (err) {
 		console.error("Stripe OAuth error:", err);
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
 	}
 }
+
 
 
 //******* USE BELOW FOR DEMO PURPOSES ONLY ******** */

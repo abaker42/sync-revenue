@@ -2,12 +2,13 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 function Login() {
+	const supabase = createSupabaseBrowserClient();
 	const searchParams = useSearchParams();
 	const authErr = searchParams.get("error");
 	const router = useRouter();
