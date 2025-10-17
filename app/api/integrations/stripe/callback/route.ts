@@ -1,5 +1,4 @@
 // app/api/integrations/stripe/callback/route.ts
-import { createSupabaseServerClient } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
