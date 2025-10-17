@@ -1,15 +1,14 @@
 // app/api/integrations/stripe/callback/route.ts
+
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import Stripe from "stripe";
 
-// ✅ Correct API version (not "clover" — use latest stable)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 	apiVersion: "2025-09-30.clover",
 });
 
-// ✅ Use consistent env name (you had NEXT_PUBLIC_URL vs NEXT_PUBLIC_BASE_URL)
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 export async function GET(req: Request) {
@@ -21,34 +20,33 @@ export async function GET(req: Request) {
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
 	}
 
-	// ✅ Setup Supabase server client using the request's cookies
 	const cookieStore = await cookies();
-	const supabase = createServerClient(
-		process.env.NEXT_PUBLIC_SUPABASE_URL!,
-		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-		{
-			cookies: {
-				getAll() {
-					return cookieStore.getAll(); // Sync access after awaiting
+		const supabase = createServerClient(
+			process.env.NEXT_PUBLIC_SUPABASE_URL!,
+			process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+			{
+				cookies: {
+					getAll() {
+						return cookieStore.getAll(); // Sync access after awaiting
+					},
+					setAll(cookiesToSet) {
+						try {
+							cookiesToSet.forEach(({ name, value, options }) =>
+								cookieStore.set(name, value, options)
+							);
+						} catch (error) {
+							// Handle if setAll isn't supported (e.g., Next.js <15); log or ignore as needed
+							console.warn("cookies.setAll not supported:", error);
+						}
+					},
 				},
-				setAll(cookiesToSet) {
-					try {
-						cookiesToSet.forEach(({ name, value, options }) =>
-							cookieStore.set(name, value, options)
-						);
-					} catch (error) {
-						// Handle if setAll isn't supported (e.g., Next.js <15); log or ignore as needed
-						console.warn("cookies.setAll not supported:", error);
-					}
-				},
-			},
-		}
-	);
+			}
+		);
 
+		// token exchange
 	try {
 		console.log("attempting to exchange code for token");
 
-		// ✅ Exchange code for tokens (this part was already good)
 		const tokenResponse = await fetch(
 			"https://connect.stripe.com/oauth/token",
 			{
@@ -71,7 +69,7 @@ export async function GET(req: Request) {
 		const stripeData = await tokenResponse.json();
 		console.log("Stripe OAuth success:", stripeData);
 
-		// ✅ Check Supabase user from cookies (requires correct Site URL config)
+		console.log("All cookies:", cookieStore.getAll()); // debug line
 		const {
 			data: { user },
 			error: userError,
@@ -85,7 +83,7 @@ export async function GET(req: Request) {
 			return NextResponse.redirect(`${baseUrl}/auth/login?error=no_user`);
 		}
 
-		// ✅ Store integration in Supabase
+		// store user integration in integrations table
 		const { error: dbError } = await supabase.from("integrations").upsert({
 			user_id: user.id,
 			provider: "stripe",
@@ -106,8 +104,6 @@ export async function GET(req: Request) {
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
 	}
 }
-
-
 
 //******* USE BELOW FOR DEMO PURPOSES ONLY ******** */
 // import { NextResponse } from "next/server";
