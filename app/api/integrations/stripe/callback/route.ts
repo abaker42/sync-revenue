@@ -97,8 +97,8 @@ export async function GET(req: Request) {
 			throw dbError;
 		}
 
-		console.log("Stored integration in Supabase");
-		return NextResponse.redirect(`${baseUrl}/dashboard?connected=stripe`);
+		console.log("Stored integration in Supabase redirecting to dashboard");
+		return NextResponse.redirect(`${baseUrl}/dashboard`);
 	} catch (err) {
 		console.error("Stripe OAuth error:", err);
 		return NextResponse.redirect(`${baseUrl}/dashboard?error=stripe`);
