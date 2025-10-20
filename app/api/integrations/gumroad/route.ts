@@ -1,66 +1,83 @@
+// app/api/integrations/gumroad/route.ts
+
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { fetchGumroadSales, aggregateSalesByDay } from "@/lib/gumroad";
 
-// Define a type for the payload you expect (replace with your real shape)
-interface GumroadPayload {
-	productId: string;
-	quantity: number;
-	userId?: string;
-}
-
-export async function POST(req: Request) {
-	// Parse the JSON body (unknown is safer than any)
-	const body = (await req.json()) as unknown;
-
-	// Validate or narrow type
-	if (
-		typeof body !== "object" ||
-		body === null ||
-		!("productId" in body) ||
-		!("quantity" in body)
-	) {
-		return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-	}
-
-	const payload = body as GumroadPayload;
-
-	// Create supabase client
+export async function GET() {
+	// Create Supabase client
 	const cookieStore = await cookies();
 	const supabase = createServerClient(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
 		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 		{
 			cookies: {
-				get(name: string) {
-					return cookieStore.get(name)?.value;
+				getAll() {
+					return cookieStore.getAll();
 				},
-				set(name: string, value: string, opts: any) {
-					cookieStore.set({ name, value, ...opts });
-				},
-				remove(name: string, opts: any) {
-					cookieStore.set({ name, value: "", ...opts });
+				setAll(cookiesToSet) {
+					try {
+						cookiesToSet.forEach(({ name, value, options }) =>
+							cookieStore.set(name, value, options)
+						);
+					} catch (error) {
+						console.warn("cookies.setAll not supported:", error);
+					}
 				},
 			},
 		}
 	);
 
-	// (Optional) check user
+	// Get authenticated user
 	const {
 		data: { user },
+		error: userError,
 	} = await supabase.auth.getUser();
 
-	if (!user) {
+	if (userError || !user) {
 		return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 	}
 
-	// Example: Save an order or log in a “purchases” table
-	await supabase.from("purchases").insert({
-		user_id: user.id,
-		product_id: payload.productId,
-		quantity: payload.quantity,
-		purchased_at: new Date().toISOString(),
-	});
+	try {
+		// Get Gumroad integration from database
+		const { data: integration, error: dbError } = await supabase
+			.from("integrations")
+			.select("access_token")
+			.eq("user_id", user.id)
+			.eq("provider", "gumroad")
+			.single();
 
-	return NextResponse.json({ success: true });
+		if (dbError || !integration) {
+			return NextResponse.json(
+				{ error: "Gumroad not connected" },
+				{ status: 404 }
+			);
+		}
+
+		// Fetch sales from Gumroad API
+		const salesData = await fetchGumroadSales(integration.access_token);
+
+		// Aggregate sales by day
+		const dailyRevenue = aggregateSalesByDay(salesData.sales || []);
+
+		// Calculate total revenue
+		const totalRevenue = dailyRevenue.reduce(
+			(sum, day) => sum + day.amount,
+			0
+		);
+
+		return NextResponse.json({
+			success: true,
+			totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+			dailyRevenue,
+			salesCount: salesData.sales?.length || 0,
+		});
+	} catch (error) {
+		console.error("Gumroad API error:", error);
+		return NextResponse.json(
+			{ error: "Failed to fetch Gumroad data" },
+			{ status: 500 }
+		);
+	}
 }
