@@ -8,6 +8,7 @@ import { exchangeGumroadCode } from "@/lib/gumroad";
 const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
 export async function GET(req: Request) {
+	console.log('baseUrl: ', baseUrl)
 	const { searchParams } = new URL(req.url);
 	const code = searchParams.get("code");
 	const error = searchParams.get("error");
