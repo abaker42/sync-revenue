@@ -1,12 +1,17 @@
+import RevenueSync from "@/components/shared/rs-logo";
+
+//corner Logo/Navbar className="mb-4 hover:opacity-80 transition-opacity"
+
 export default function HomePage() {
 	return (
 		<section className='flex flex-col items-center justify-center text-center py-20 px-6'>
+			<RevenueSync size='large' />
 			<h1 className='text-4xl font-bold mb-4'>
 				Unify Your Revenue Streams in One Dashboard
 			</h1>
 			<p className='max-w-xl mb-6 text-gray-600'>
-				Revenue Sync helps solo founders view Stripe, Gumroad, PayPal, and
-				Lemon Squeezy income in one place.
+				Revenue Sync helps solo founders view Stripe, Gumroad, PayPal, and Lemon
+				Squeezy income in one place.
 			</p>
 			<div className='space-x-4'>
 				<a
